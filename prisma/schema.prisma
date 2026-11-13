@@ -1,0 +1,243 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum Role {
+  COMPANY
+  RESPONDENT
+  ADMIN
+}
+enum Visibility {
+  PRIVATE
+  SHARED
+  OPEN
+}
+enum ResearchStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+enum QuestionType {
+  SINGLE
+  MULTIPLE
+  RATING
+  TEXT
+  YESNO
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  passwordHash String
+  name String
+  role Role
+  consentAt DateTime
+  consentVersion String @default("2026-09")
+  createdAt DateTime @default(now())
+  profile RespondentProfile?
+  memberships OrganizationMember[]
+  sessions Session[]
+  conversations AIConversation[]
+  flags Flag[]
+}
+model Session {
+  tokenHash String @id
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  expiresAt DateTime
+  @@index([userId])
+  @@index([expiresAt])
+}
+model RespondentProfile {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  age Int
+  gender String
+  region String
+  interests String[]
+  categories String[]
+  brands String[]
+  parentalConsentStatus String @default("NOT_REQUIRED")
+  participants ResearchParticipant[]
+  rewards RewardTransaction[]
+  @@index([age, gender, region])
+}
+model Organization {
+  id String @id @default(cuid())
+  name String
+  industry String
+  size String
+  website String?
+  members OrganizationMember[]
+  research Research[]
+}
+model OrganizationMember {
+  id String @id @default(cuid())
+  userId String
+  organizationId String
+  title String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  organization Organization @relation(fields:[organizationId], references:[id], onDelete:Cascade)
+  @@unique([userId, organizationId])
+}
+model Research {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields:[organizationId], references:[id], onDelete:Cascade)
+  title String
+  description String
+  brand String
+  category String
+  objective String
+  visibility Visibility @default(PRIVATE)
+  sharedReleased Boolean @default(false)
+  status ResearchStatus @default(DRAFT)
+  reward Int
+  minutes Int @default(4)
+  createdAt DateTime @default(now())
+  publishedAt DateTime?
+  target ResearchTarget?
+  questions Question[]
+  participants ResearchParticipant[]
+  analyses AIAnalysis[]
+  conversations AIConversation[]
+  flags Flag[]
+  @@index([organizationId,status])
+  @@index([status,visibility])
+}
+model ResearchTarget {
+  id String @id @default(cuid())
+  researchId String @unique
+  research Research @relation(fields:[researchId],references:[id],onDelete:Cascade)
+  minAge Int @default(12)
+  maxAge Int @default(30)
+  gender String @default("")
+  region String @default("")
+  interests String[]
+  categories String[]
+}
+model Question {
+  id String @id @default(cuid())
+  researchId String
+  research Research @relation(fields:[researchId],references:[id],onDelete:Cascade)
+  text String
+  type QuestionType
+  position Int
+  required Boolean @default(true)
+  scale Int @default(5)
+  options QuestionOption[]
+  answers Answer[]
+  @@unique([researchId,position])
+}
+model QuestionOption {
+  id String @id @default(cuid())
+  questionId String
+  question Question @relation(fields:[questionId],references:[id],onDelete:Cascade)
+  text String
+  position Int
+  selections AnswerSelection[]
+  @@unique([questionId,position])
+}
+model ResearchParticipant {
+  id String @id @default(cuid())
+  researchId String
+  respondentId String
+  research Research @relation(fields:[researchId],references:[id],onDelete:Cascade)
+  respondent RespondentProfile @relation(fields:[respondentId],references:[id],onDelete:Cascade)
+  startedAt DateTime @default(now())
+  response Response?
+  reward RewardTransaction?
+  @@unique([researchId,respondentId])
+  @@index([respondentId])
+}
+model Response {
+  id String @id @default(cuid())
+  participantId String @unique
+  participant ResearchParticipant @relation(fields:[participantId],references:[id],onDelete:Cascade)
+  completedAt DateTime @default(now())
+  age Int
+  gender String
+  region String
+  interests String[]
+  answers Answer[]
+  @@index([age,gender,region])
+  @@index([completedAt])
+}
+model Answer {
+  id String @id @default(cuid())
+  responseId String
+  questionId String
+  response Response @relation(fields:[responseId],references:[id],onDelete:Cascade)
+  question Question @relation(fields:[questionId],references:[id],onDelete:Cascade)
+  text String?
+  number Float?
+  selections AnswerSelection[]
+  @@unique([responseId,questionId])
+  @@index([questionId])
+}
+model AnswerSelection {
+  answerId String
+  optionId String
+  answer Answer @relation(fields:[answerId],references:[id],onDelete:Cascade)
+  option QuestionOption @relation(fields:[optionId],references:[id],onDelete:Cascade)
+  @@id([answerId,optionId])
+}
+model RewardTransaction {
+  id String @id @default(cuid())
+  respondentId String
+  participantId String @unique
+  respondent RespondentProfile @relation(fields:[respondentId],references:[id],onDelete:Cascade)
+  participant ResearchParticipant @relation(fields:[participantId],references:[id],onDelete:Cascade)
+  amount Int
+  description String
+  createdAt DateTime @default(now())
+  @@index([respondentId,createdAt])
+}
+model AIAnalysis {
+  id String @id @default(cuid())
+  researchId String
+  research Research @relation(fields:[researchId],references:[id],onDelete:Cascade)
+  fingerprint String
+  result Json
+  model String
+  createdAt DateTime @default(now())
+  @@unique([researchId,fingerprint])
+}
+model AIConversation {
+  id String @id @default(cuid())
+  researchId String
+  userId String
+  research Research @relation(fields:[researchId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  messages AIMessage[]
+  @@unique([researchId,userId])
+}
+model AIMessage {
+  id String @id @default(cuid())
+  conversationId String
+  conversation AIConversation @relation(fields:[conversationId],references:[id],onDelete:Cascade)
+  role String
+  content String
+  createdAt DateTime @default(now())
+  @@index([conversationId,createdAt])
+}
+model RateLimit {
+  key String @id
+  count Int
+  expiresAt DateTime
+}
+model Flag {
+  id String @id @default(cuid())
+  userId String
+  researchId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  research Research @relation(fields:[researchId],references:[id],onDelete:Cascade)
+  reason String
+  resolved Boolean @default(false)
+  createdAt DateTime @default(now())
+}

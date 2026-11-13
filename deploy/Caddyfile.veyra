@@ -1,0 +1,9 @@
+https://158.160.159.254:8443 {
+    tls {
+        issuer acme https://acme-v02.api.letsencrypt.org/directory {
+            profile shortlived
+        }
+    }
+    encode gzip
+    reverse_proxy veyra-app:3000
+}

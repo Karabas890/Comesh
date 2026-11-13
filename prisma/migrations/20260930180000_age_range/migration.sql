@@ -1,0 +1,1 @@
+ALTER TABLE "ResearchTarget" ALTER COLUMN "minAge" SET DEFAULT 12;
